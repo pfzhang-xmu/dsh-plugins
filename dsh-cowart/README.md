@@ -64,3 +64,20 @@ node scripts/verify.mjs --port=3080     # pre-flight check against a running ins
 ## Acknowledgements
 
 Canvas capability based on [tldraw/tldraw](https://github.com/tldraw/tldraw); the canvas app is adapted from [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart) (MIT).
+
+## Usage walkthrough
+
+A typical session (requires image generation/editing tools, e.g. `dsh-image-tools`, and optionally a vision bridge like `modlens_read_image`):
+
+1. **Open** — say "打开 Cowart 画布" (or click the 🖼 画布 button in the composer row). The canvas opens in a floating window; drag the title bar to move it, drag the bottom-right grip to resize, click 📌 to pin it to the right edge as a sidebar. Position, size, pin state and project are remembered.
+2. **Generate** — create an "AI image" frame and type a prompt, e.g.:
+
+   ```text
+   画一幅动漫风的山水风景图
+   ```
+
+   The frame request reaches the agent as `[cowart-request:ai_image]` with the frame id, target size and aspect ratio. The agent calls `generate_image` at that ratio and then `cowart_insert_image` (anchorShapeId = frame id, replaceAiImageHolder default) — the frame becomes a normal image shape and the canvas auto-refreshes.
+3. **Annotate & refine** — draw arrows/notes on the image (e.g. "把模糊的飞鸟换成一行清晰可见的白鹭"), select it and click "按标注修改". The annotated screenshot is stored under the page assets and sent as `[cowart-request:annotation_edit]`. The agent reads the annotation (vision), calls `edit_image` to produce a clean result, and inserts it beside the original via `cowart_insert_image` with the `annotationScreenshot` meta — original image and annotations stay untouched.
+4. **HTML drafts & slides** — an "AI HTML" frame or "AI Slides" frame sends `[cowart-request:ai_html]` / `[cowart-request:ai_slides]`; the agent writes single-file HTML and calls `cowart_insert_html_draft` to embed it in the canvas.
+
+All assets (canvas JSON, images, annotation screenshots, HTML drafts) live under `<workspace>/canvas/` and version with your project.
