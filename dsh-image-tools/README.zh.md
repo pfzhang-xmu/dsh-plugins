@@ -46,3 +46,31 @@ node --test dsh-image-tools/index.test.js
 ```
 
 修改 Host profile 后需重启 DSH Web 进程并刷新 `http://127.0.0.1:3080`。本插件仅 Host 端，无需重建客户端 bundle。
+
+## 用法
+
+两个工具都是普通 agent 工具：模型在对话中直接调用，结果以本地路径返回（宿主支持时同时内联展示图片）。
+
+**生成图片**
+
+```text
+生成一张 16:9 的赛博朋克城市夜景插画，霓虹蓝紫配色，无文字。
+```
+
+agent 会调用 `generate_image({ prompt, size: "1536x1024" })`，并把保存路径（`.dsh-images/` 下，如 `generate-20260101T000000Z-xxxx-1.png`）返回，可直接 `modlens_read_image` 查看或继续编辑。
+
+**编辑/精修图片**
+
+```text
+把 /Users/me/project/.dsh-images/xxx.png 里的红色箭头全部去掉，保持其余内容不变
+```
+
+agent 会调用 `edit_image({ image: <路径>, prompt: "…" })`，新结果保存到原图旁；`mask` 可选，用于限定区域修改。
+
+**与画布（dsh-cowart）配合的典型流程**
+
+1. `generate_image` 按目标宽高比出图。
+2. `cowart_insert_image`（来自 `dsh-cowart` 插件）把图片复制进画布 page assets 并替换选中的 AI 图片框。
+3. 标注后 `edit_image` 依据标注截图重绘，`cowart_insert_image` 把结果放到原图旁。
+
+完整「生成 → 标注 → 按标注精修」示例见仓库根 README。
