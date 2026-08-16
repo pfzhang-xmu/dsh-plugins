@@ -64,3 +64,20 @@ node scripts/verify.mjs --port=3080     # 对运行中的实例做预检
 ## 致谢
 
 画布能力基于 [tldraw/tldraw](https://github.com/tldraw/tldraw)；画布应用改编自 [zhongerxin/Cowart](https://github.com/zhongerxin/Cowart)（MIT）。
+
+## 使用示例
+
+一次典型会话（需要图片生成/编辑工具，如 `dsh-image-tools`；建议配合视觉桥 `modlens_read_image`）：
+
+1. **打开** —— 说「打开 Cowart 画布」（或点输入栏的 🖼 画布 按钮）。画布在悬浮窗中打开：拖标题栏移动、拖右下角握把缩放、点 📌 固定到右侧成为侧边栏；位置、大小、固定状态与项目都会记住。
+2. **生成** —— 创建「AI 图片」框并输入 prompt，例如：
+
+   ```text
+   画一幅动漫风的山水风景图
+   ```
+
+   框的请求以 `[cowart-request:ai_image]` 到达 agent（含框 id、目标尺寸与宽高比）。agent 按比例调用 `generate_image`，再用 `cowart_insert_image`（anchorShapeId = 框 id，replaceAiImageHolder 默认）把框替换为普通图片形状，画布自动刷新。
+3. **标注与精修** —— 在图片上画箭头/写批注（如「把模糊的飞鸟换成一行清晰可见的白鹭」），选中后点「按标注修改」。标注截图存入 page assets，并以 `[cowart-request:annotation_edit]` 发送；agent 读标注（视觉桥）→ `edit_image` 重绘 → `cowart_insert_image` 带 `annotationScreenshot` 元数据把新图放到原图旁。原图与标注原样保留。
+4. **AI HTML 与 AI Slides** —— 「AI HTML」框或「AI Slides」框会发送 `[cowart-request:ai_html]` / `[cowart-request:ai_slides]`；agent 生成单文件 HTML 后调用 `cowart_insert_html_draft` 嵌入画布。
+
+所有资源（画布 JSON、图片、标注截图、HTML 草稿）都在 `<工作区>/canvas/` 下，随项目进 git。
