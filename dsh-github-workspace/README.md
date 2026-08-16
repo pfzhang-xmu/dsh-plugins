@@ -1,5 +1,7 @@
 # DSH GitHub Workspace
 
+[中文文档](./README.zh.md)
+
 A local-only GitHub repository workspace for the DeepSeek Harness Web GUI. The plugin uses the installed GitHub CLI (`gh`) for authentication and GitHub API calls. Tokens remain in GitHub CLI's credential store and are never returned to the browser.
 
 ## Features
