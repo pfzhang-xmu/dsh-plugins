@@ -21,7 +21,7 @@ Cowart 是一个嵌入 DSH Web GUI 的 tldraw 无限画布。画布数据保存�
 - \`cowart_save_selection_state\` / \`cowart_save_view_state\`：画布内部维护用，agent 一般不需要。
 - \`cowart_download_file\`：把画布请求的文件存入 \`<projectDir>/Downloads/\`。
 
-图片生成与编辑请使用 image-tools 插件的 \`generate_image\` / \`edit_image\`；看标注截图用 \`modlens_read_image\`。
+图片生成与编辑请使用 image-tools 插件的 \`generate_image\` / \`edit_image\`：\`edit_image\` 直接以本地图片路径为输入（编辑模型能看到参考图本身），适合「以参考图为底图做编辑」；需要自己检查图片内容时（如 ai_html/ai_slides 的参考图、标注截图）用 \`modlens_read_image\`。
 
 ## 打开画布
 
@@ -38,9 +38,10 @@ Cowart 是一个嵌入 DSH Web GUI 的 tldraw 无限画布。画布数据保存�
 ### AI 图片框生成（cowart-request:ai_image）
 
 1. 提示词里给出 AI 图片框 id、目标宽高与宽高比、参考图本地路径（如有）。
-2. 用 \`generate_image\` 生成，size 按目标宽高比选择（如 1:1、16:9、1024x1024 等；无法精确匹配时给接近的）。
-3. 用 \`cowart_insert_image\` 插入：\`imagePath\` = 生成结果路径（.dsh-images/ 下），\`anchorShapeId\` = 框 id，\`replaceAiImageHolder\` 默认 true 把框替换为图片；多张图时第一张替换框，后续用上一张的 shapeId 作 anchor、\`replaceAiImageHolder:false, matchAnchor:false, placement:"right"\` 平铺。
-4. 不要参考文件名或界面元素画进图片；把参考图当视觉参考。
+2. **有参考图时：这是图片编辑任务，不是从零生成**——调用 image-tools 的 \`edit_image\`，以第一张参考图的本地路径为 \`image\`、把用户 Prompt 作为编辑指令（在参考图基础上修改：换背景/服装/发型等，保留人物长相与身份）；\`size\` 按目标宽高比选择（如 3:4 → 1024x1365），保证结果填满画布槽位且不裁剪拉伸。编辑工具能直接打开参考图路径，不需要先用 modlens 读图。
+3. **没有参考图时**：才用 \`generate_image\` 按目标宽高比生成新图。
+4. 用 \`cowart_insert_image\` 插入：\`imagePath\` = 生成/编辑结果路径（.dsh-images/ 下），\`anchorShapeId\` = 框 id，\`replaceAiImageHolder\` 默认 true 把框替换为图片；多张图时第一张替换框，后续用上一张的 shapeId 作 anchor、\`replaceAiImageHolder:false, matchAnchor:false, placement:"right"\` 平铺。
+5. 不要把参考图文件名或任何界面元素画进最终图片。
 
 ### 按标注修改（cowart-request:annotation_edit）
 
@@ -51,11 +52,11 @@ Cowart 是一个嵌入 DSH Web GUI 的 tldraw 无限画布。画布数据保存�
 
 ### AI HTML 框（cowart-request:ai_html）
 
-生成完整可运行的单文件 HTML（CSS/JS 尽量内联），调用 \`cowart_insert_html_draft\`，\`draftShapeId\` = 框 id，\`htmlContent\` = 完整 HTML，fileName 用简短描述。多份 HTML 时逐个插入并横向平铺。
+如提示词附带了参考图本地路径，先用 \`modlens_read_image\` 读取参考图再设计（DSH 下参考图只以路径文本到达）。生成完整可运行的单文件 HTML（CSS/JS 尽量内联），调用 \`cowart_insert_html_draft\`，\`draftShapeId\` = 框 id，\`htmlContent\` = 完整 HTML，fileName 用简短描述。多份 HTML 时逐个插入并横向平铺。
 
 ### AI Slides（cowart-request:ai_slides）
 
-按提示词页数逐页生成独立 16:9（1024x576）单文件 HTML，每页一次 \`cowart_insert_html_draft\`，\`draftShapeId\` = Slides 框 id，\`replaceDraftHolder:false, updateExistingDraft:false, matchAnchor:false, displayWidth:1024, displayHeight:576\`，shapeMeta 里带 \`cowartAiSlidesParentShapeId\`、页号等。
+如提示词附带了参考图本地路径，先用 \`modlens_read_image\` 读取参考图再设计（DSH 下参考图只以路径文本到达）。按提示词页数逐页生成独立 16:9（1024x576）单文件 HTML，每页一次 \`cowart_insert_html_draft\`，\`draftShapeId\` = Slides 框 id，\`replaceDraftHolder:false, updateExistingDraft:false, matchAnchor:false, displayWidth:1024, displayHeight:576\`，shapeMeta 里带 \`cowartAiSlidesParentShapeId\`、页号等。
 
 ## 约束
 
