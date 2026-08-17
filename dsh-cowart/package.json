@@ -1,6 +1,6 @@
 {
   "name": "dsh-cowart",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Cowart infinite canvas adapted for DeepSeek Harness: tldraw canvas embedded in the DSH Web GUI, project-backed storage, and agent tools that orchestrate image-tools / modlens for generate → annotate → refine.",
