@@ -213,13 +213,14 @@ const HTML_DRAFT_ANNOTATION_IMAGE_PROMPT = [
 const AI_IMAGE_GENERATION_PROMPT_PREFIX = [
   '[Cowart 画布] 生成图片',
   '',
-  '请根据下面的 prompt 生成一张图片，并替换当前选中的 Cowart AI 图片框；最终画布里应留下普通图片形状，不保留 AI 图片框容器。',
-  '默认生成一张；如果用户在 prompt 中明确要求多张图片，则用户要求的数量优先于上面的单数措辞。',
-  '多张时必须分别生成对应数量的独立 bitmap，并作为多个普通图片形状从左到右平铺在画布上；第一张替换当前 AI 图片框，后续图片放在上一张图片右侧。',
+  '请根据下面的 prompt 完成图片任务（带参考图时是「编辑」任务，无参考图时是「生成」任务），并替换当前选中的 Cowart AI 图片框；最终画布里应留下普通图片形状，不保留 AI 图片框容器。',
+  '默认一张；如果用户在 prompt 中明确要求多张图片，则用户要求的数量优先于上面的单数措辞。',
+  '多张时必须分别处理出对应数量的独立 bitmap，并作为多个普通图片形状从左到右平铺在画布上；第一张替换当前 AI 图片框，后续图片放在上一张图片右侧。',
   '插入多张图片时，第一张按默认流程替换 AI 图片框；之后每次使用上一张插入结果返回的 shapeId 作为 anchorShapeId，并设置 replaceAiImageHolder: false、matchAnchor: false、placement: "right"。',
   '不要把多张图片合成一张拼图、画册或带分页的单一产物。',
-  '如果附带一张或多张参考图，请把参考图作为视觉参考；不要把参考图文件名或任何界面元素画进最终图片。',
-  '不需要选择生图模型，使用 Codex 当前可用的图片生成能力。'
+  '如果附带一张或多张参考图：这是图片编辑任务——调用 image-tools 的 edit_image，以第一张参考图为底图（image 参数传其本地路径）、把下面的用户 Prompt 作为编辑指令（在参考图基础上修改，如换背景/服装/发型，保留人物长相与身份）；不要从零生成，也不要把参考图文件名或任何界面元素画进最终图片。',
+  '如果没有参考图：调用 image-tools 的 generate_image 按提示词生成新图。',
+  '不需要选择生图模型，使用当前可用的图片生成/编辑能力。'
 ].join('\n')
 const AI_DRAFT_GENERATION_PROMPT_PREFIX = [
   '[Cowart 画布] 生成 AI HTML',
@@ -1302,7 +1303,15 @@ function followUpSender() {
 
 function cowartHostCapabilities() {
   try {
-    if (IS_DSH_MODE) return { message: { image: false } }
+    if (IS_DSH_MODE) {
+      // DSH agent models are text-only: image content blocks are not admitted
+      // into the conversation (attachment -> host admission -> "model does not
+      // support images"). Cowart reference images are therefore persisted to
+      // the canvas page assets and reach the agent as local paths in the
+      // prompt text; the agent must open them with the modlens_read_image
+      // vision bridge (see the cowart skill and aiImageReferenceLines).
+      return { message: { image: false } }
+    }
     return (
       window.cowartMcp?.getHostCapabilities?.() ||
       window.openai?.hostCapabilities ||
@@ -2565,8 +2574,18 @@ function aiImageReferenceLines({ references, referenceAttached }) {
     }
   })
 
-  if (localPathLines.some((line) => !line.endsWith('(local path unavailable)'))) {
-    lines.push('Reference image local paths:', ...localPathLines, 'Use these local files as visual references.')
+  const hasLocalPaths = localPathLines.some((line) => !line.endsWith('(local path unavailable)'))
+  if (hasLocalPaths) {
+    lines.push('Reference image local paths:', ...localPathLines)
+    // DSH hosts are text-only: reference images are persisted to canvas page
+    // assets and travel as local paths. For ai_image the edit tool opens the
+    // path directly; modlens_read_image is only needed if the agent itself
+    // must inspect the pixels (e.g. design tasks like ai_html / ai_slides).
+    lines.push(
+      referenceAttached
+        ? 'Reference images are also attached as image content blocks; use them as visual references.'
+        : 'Use the referenced local image files as visual references (read them with modlens_read_image only if you need to inspect them yourself).'
+    )
   } else if (referenceAttached) {
     lines.push('Reference images are attached as image content blocks; use them as visual references.')
   } else {
@@ -2575,9 +2594,32 @@ function aiImageReferenceLines({ references, referenceAttached }) {
   return lines
 }
 
+function aiImageToolSelectionLines(references) {
+  if (!references.length) {
+    return [
+      'Tool selection: no reference image — call image-tools generate_image with the Prompt below, using a size that matches the target aspect ratio.'
+    ]
+  }
+  const firstReference = references[0]
+  const firstPath = firstReference?.savedReference?.assetPath || null
+  const lines = [
+    'Tool selection: reference image(s) provided — EDIT the reference image, do not generate from scratch.',
+    `- Call image-tools edit_image with image = ${firstPath ? `"${firstPath}"` : 'the first reference image (its local path)'} and the user Prompt below as the edit instruction.`,
+    firstPath
+      ? '- The edit tool opens the reference local path directly; do not re-read it with modlens_read_image first.'
+      : '- If the reference only arrived as an attached image block, save it to a local path first, then pass that path to edit_image.'
+  ]
+  if (references.length > 1) {
+    lines.push('- Additional reference images may be described in the edit prompt as style/context guidance.')
+  }
+  lines.push('- Preserve the reference subject/identity; pick an edit_image output size matching the target aspect ratio so the result fills the slot without cropping or stretching.')
+  return lines
+}
+
 function buildAiImageGenerationPrompt({ holderShape, userPrompt, references, referenceAttached }) {
   const { targetWidth, targetHeight, ratio, ratioLabel } = formatAiImageGenerationTarget(holderShape)
   const referenceLines = aiImageReferenceLines({ references, referenceAttached })
+  const toolSelectionLines = aiImageToolSelectionLines(references)
 
   return [
     AI_IMAGE_GENERATION_PROMPT_PREFIX,
@@ -2587,6 +2629,7 @@ function buildAiImageGenerationPrompt({ holderShape, userPrompt, references, ref
     `Target aspect ratio: ${ratioLabel} (${ratio.toFixed(3)} width/height).`,
     'Compose the final bitmap for this slot without cropping or stretching.',
     ...referenceLines,
+    ...toolSelectionLines,
     '',
     'Prompt:',
     userPrompt.trim()
