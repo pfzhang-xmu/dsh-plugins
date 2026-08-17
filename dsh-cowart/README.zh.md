@@ -41,7 +41,7 @@ cd dsh-cowart && npm run build:canvas
 ## 使用
 
 1. 说「打开 Cowart 画布」→ agent 调用 `cowart_open_canvas`，画布出现在悬浮窗（拖标题栏移动、拖右下角握把缩放、点 📌 固定到右侧成为侧边栏）。
-2. 创建「AI 图片」框并输入 prompt → 请求以 `[cowart-request:ai_image]` 到达 agent → 按框的宽高比生成图片（`generate_image`）→ `cowart_insert_image` 替换框，画布 SSE 自动刷新。
+2. 创建「AI 图片」框并输入 prompt → 请求以 `[cowart-request:ai_image]` 到达 agent：附带参考图时以第一张参考图为底图调用 `edit_image`（prompt 作为编辑指令，保留主体身份）；无参考图时按框的宽高比用 `generate_image` 生成 → `cowart_insert_image` 替换框，画布 SSE 自动刷新。
 3. 在图上标注（箭头/文字）后点「按标注修改」→ 标注截图存入 canvas assets → agent 读标注（视觉）→ 编辑图片（`edit_image`）→ 结果插到原图旁。
 4. AI HTML 框与 AI Slides 使用 `cowart_insert_html_draft`。
 
