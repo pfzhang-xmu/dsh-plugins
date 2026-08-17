@@ -114,6 +114,36 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function dataUrlImageBlocks(content) {
+      if (!Array.isArray(content)) return []
+      return content.filter(
+        (block) =>
+          block !== null &&
+          typeof block === 'object' &&
+          block.type === 'image' &&
+          typeof block.data === 'string' &&
+          block.data !== '',
+      )
+    }
+
+    function imageBlockToFile(block, index) {
+      const mimeType = typeof block.mimeType === 'string' && block.mimeType !== '' ? block.mimeType : 'image/png'
+      const ext = mimeType === 'image/jpeg' || mimeType === 'image/jpg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png'
+      const binary = atob(block.data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+      return new File([bytes], `cowart-reference-${index + 1}.${ext}`, { type: mimeType })
+    }
+
+    function sessionFaceOf(sessionId) {
+      try {
+        const scope = runtime?.sessions?.scope?.(sessionId)
+        return scope === undefined || scope === null ? undefined : runtime.sessions.sessionOf(scope)
+      } catch {
+        return undefined
+      }
+    }
+
     function sendAgentRequest(sessionId, payload) {
       const conversation = conversationOf(sessionId)
       if (conversation === undefined) return false
@@ -123,6 +153,44 @@ window.__ModuleLoader__.load({
       if (prompt === null || prompt.trim() === '') return false
       const promptType = typeof analyticsContext?.promptType === 'string' ? analyticsContext.promptType : 'other'
       const text = `[cowart-request:${promptType}] ${prompt.trim()}`
+      const imageBlocks = dataUrlImageBlocks(message?.content)
+
+      // The canvas only attaches image content blocks when it believes the
+      // host accepts them; forward them through the conversation's
+      // draft-attachment path when available. Any failure (e.g. a text-only
+      // host that rejects image admission) falls back to the plain text send —
+      // the canvas always embeds the reference image local paths in the prompt
+      // text, so a reference is never lost on the fallback.
+      if (imageBlocks.length > 0) {
+        try {
+          if (
+            typeof conversation.createDraftImages === 'function' &&
+            typeof conversation.sendSession === 'function'
+          ) {
+            const session = sessionFaceOf(sessionId)
+            if (session !== undefined) {
+              const attachments = conversation.createDraftImages(imageBlocks.map(imageBlockToFile))
+              conversation
+                .sendSession(
+                  session,
+                  text,
+                  attachments.map((attachment) => attachment.id),
+                  'queue',
+                )
+                .catch((error) => {
+                  console.warn('[dsh-cowart] sendSession with image attachments failed, falling back to text:', error)
+                  Promise.resolve(conversation.send(text)).catch((sendError) => {
+                    console.warn('[dsh-cowart] conversation.send failed:', sendError)
+                  })
+                })
+              return true
+            }
+          }
+        } catch (error) {
+          console.warn('[dsh-cowart] image attachment forwarding failed, falling back to text:', error)
+        }
+      }
+
       Promise.resolve(conversation.send(text)).catch((error) => {
         console.warn('[dsh-cowart] conversation.send failed:', error)
       })
