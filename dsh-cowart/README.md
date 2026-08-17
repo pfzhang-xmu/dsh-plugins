@@ -41,7 +41,7 @@ cd dsh-cowart && npm run build:canvas
 ## Usage
 
 1. Say "Open the Cowart canvas" — the agent calls `cowart_open_canvas`; the canvas appears in a floating window (drag the title bar, resize via the bottom-right grip, click 📌 to pin it to the right edge like a sidebar).
-2. Create an "AI image" frame and send a prompt — the request reaches the agent as `[cowart-request:ai_image]`; the agent generates an image matching the frame's aspect ratio (via `generate_image`) and calls `cowart_insert_image` to replace the frame; the canvas auto-refreshes via SSE.
+2. Create an "AI image" frame and send a prompt — the request reaches the agent as `[cowart-request:ai_image]`; when a reference image is attached, the agent edits the first reference image with `edit_image` (the prompt is the edit instruction, preserving the subject's identity); without a reference, it generates an image matching the frame's aspect ratio via `generate_image`; then it calls `cowart_insert_image` to replace the frame; the canvas auto-refreshes via SSE.
 3. Annotate an image (arrows/text) and click "按标注修改" — the annotated screenshot is saved into the canvas assets; the agent reads it (vision), edits it (`edit_image`), and inserts the result beside the original.
 4. AI HTML frames and AI Slides use `cowart_insert_html_draft`.
 
